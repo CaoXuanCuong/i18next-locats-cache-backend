@@ -2,8 +2,7 @@
   "name": "i18next-locats-cache-backend",
   "version": "1.0.0",
   "description": "i18next locats cache backend",
-  "main": "index.js",
-  "module": "./dist/bin/i18next-locats.d.ts",
+  "main": "./dist/cache.js",
   "types": "./index.d.ts",
   "engines": {
     "node": ">=16.16.0"
