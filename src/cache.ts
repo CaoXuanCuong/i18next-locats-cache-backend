@@ -38,7 +38,7 @@ function getDefaults(): LocatsCacheBackendOptions {
   }
   return {
     prefix: 'locats_res_',
-    checkEtagUrl: '',
+    checkEtagPath: '',
     expirationTime: 7 * 24 * 60 * 60 * 1000,
     defaultVersion: undefined,
     versions: {},
@@ -65,32 +65,31 @@ class Cache {
   }
 
   read(language: string, namespace: string, callback: ReadCallback) {
-    var nowMS = Date.now();
+    let nowMS = Date.now();
     if (!this.storage || !this.storage.store) {
       return callback(null, null);
     }
-    var local = this.storage.getItem("".concat(this.options.prefix || "locats_res_").concat(language, "-").concat(namespace));
+    let local = this.storage.getItem("".concat(this.options.prefix || "locats_res_").concat(language, "-").concat(namespace));
     if (local) {
       local = JSON.parse(local);
-      var version = this.getVersion(language);
+      let version = this.getVersion(language);
       if (
         local.i18nStamp && local.i18nStamp + this.options.expirationTime > nowMS &&
         version === local.i18nVersion
       ) {
-        var i18nVersion = local.i18nVersion;
-        var i18nStamp = local.i18nStamp;
-        var i18LocatsEtag = local.i18LocatsEtag;
+        let i18nVersion = local.i18nVersion;
+        let i18nStamp = local.i18nStamp;
+        let i18LocatsEtag = local.i18LocatsEtag;
         delete local.i18nVersion;
         delete local.i18nStamp;
         delete local.i18LocatsEtag;
-        if (this.options.checkEtagUrl) {
-          let url = `${this.options.checkEtagUrl}/${language}/${namespace}.json`;
+        if (this.options.checkEtagPath) {
+          const url = this.services.interpolator.interpolate(this.options.checkEtagPath, { lng: language, ns: namespace })
           fetch(url, {
             method: "GET",
             // Cache-Control header
             headers: {
               'If-None-Match': i18LocatsEtag,
-
             },
           })
             .then(async (response) => {

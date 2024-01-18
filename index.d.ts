@@ -1,6 +1,6 @@
 export type LocatsCacheBackendOptions = {
     prefix?: string;
-    checkEtagUrl?: string;
+    checkEtagPath?: string;
     expirationTime?: number;
     versions?: { [key: string]: string };
     defaultVersion?: string;
