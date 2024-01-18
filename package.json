@@ -1,0 +1,38 @@
+{
+  "name": "i18next-locats-cache-backend",
+  "version": "1.0.0",
+  "description": "i18next locats cache backend",
+  "main": "index.js",
+  "module": "./dist/bin/i18next-locats.d.ts",
+  "types": "./index.d.ts",
+  "engines": {
+    "node": ">=16.16.0"
+  },
+  "keywords": [
+    "i18next",
+    "i18next-locats"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "prepare": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CaoXuanCuong/i18next-locats-cache-backend"
+  },
+  "author": {
+    "name": "BSS",
+    "email": "info@bsscommerce.com"
+  },
+  "contributors": [
+    {
+      "name": "Cuong CX",
+      "email": "cuongcx@bsscommerce.com"
+    }
+  ],
+  "license": "ISC",
+  "devDependencies": {
+    "i18next": "^23.7.1",
+    "typescript": "^5.3.3"
+  }
+}
