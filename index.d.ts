@@ -11,7 +11,17 @@ type AddPathOption =
 
 type FetchFunction = (input: string, init: RequestInit) => Promise<Response> | void
 
-export type LocatsCacheBackendOptions = {
+type RequestCallback = (error: any, response: Nullable<RequestResponse>) => void;
+
+interface RequestResponse {
+  status: number;
+  data: ResourceKey;
+}
+
+export type LocaleData = { 
+  [name: string]: string | number 
+}
+export interface LocatsCacheBackendOptions {
     prefix?: string;
     checkEtagPath?: string;
     expirationTime?: number;

@@ -1,6 +1,6 @@
 import { hasXMLHttpRequest } from '../http/utils'
 import fetchNode from '../http/getFetch'
-import { LocatsCacheBackendOptions } from '../index.js'
+import { LocatsCacheBackendOptions, RequestCallback } from '../index.js'
 
 let fetchApi: any;
 if (typeof fetch === 'function') {
@@ -13,13 +13,13 @@ if (typeof fetch === 'function') {
 let XmlHttpRequestApi: any;
 if (hasXMLHttpRequest()) {
   if (typeof window !== 'undefined' && window.XMLHttpRequest) {
-    XmlHttpRequestApi = window.XMLHttpRequest
+    XmlHttpRequestApi = window.XMLHttpRequest;
   }
 }
 let ActiveXObjectApi: any;
 if (typeof ActiveXObject === 'function') {
   if (typeof window !== 'undefined' && window.ActiveXObject) {
-    ActiveXObjectApi = window.ActiveXObject
+    ActiveXObjectApi = window.ActiveXObject;
   }
 }
 if (!fetchApi && fetchNode && !XmlHttpRequestApi && !ActiveXObjectApi) fetchApi = fetchNode;
@@ -38,33 +38,31 @@ const addQueryString = (url: string, params: any) => {
   return url
 }
 
-const fetchIt = (url: string, fetchOptions, callback, altFetch) => {
+const fetchIt = (url: string, fetchOptions: RequestInit, callback: RequestCallback) => {
   const resolver = (response: Response) => {
     if (!response.ok) return callback(response.statusText || 'Error', { status: response.status })
     response.text().then((data) => {
       callback(null, { status: response.status, data })
-    }).catch(callback)
+    }).catch((e) => {
+      callback(e.message, null);
+    })
   }
-  if (altFetch) {
-    // already checked to have the proper signature
-    const altResponse = altFetch(url, fetchOptions)
-    if (altResponse instanceof Promise) {
-      altResponse.then(resolver).catch(callback)
-      return
-    }
-    // fall through
-  }
+
   if (typeof fetch === 'function') { // react-native debug mode needs the fetch function to be called directly (no alias)
-    fetch(url, fetchOptions).then(resolver).catch(callback)
+    fetch(url, fetchOptions).then(resolver).catch((e: Error) => {
+      callback(e.message, null);
+    })
   } else {
-    fetchApi(url, fetchOptions).then(resolver).catch(callback)
+    fetchApi(url, fetchOptions).then(resolver).catch((e: Error) => {
+      callback(e.message, null);
+    })
   }
 }
 
 let omitFetchOptions = false
 
 // fetch api stuff
-const requestWithFetch = (options: LocatsCacheBackendOptions, url: string, payload: {} | string, callback: Function) => {
+const requestWithFetch = (options: LocatsCacheBackendOptions, url: string, payload: {} | string, callback: RequestCallback) => {
   if (options.queryStringParams) {
     url = addQueryString(url, options.queryStringParams)
   }
@@ -74,27 +72,26 @@ const requestWithFetch = (options: LocatsCacheBackendOptions, url: string, paylo
 
   if (payload) headers['Content-Type'] = 'application/json'
   const reqOptions = typeof options.requestOptions === 'function' ? options.requestOptions(payload) : options.requestOptions
-  const fetchOptions = {
+  const fetchOptions: RequestInit = {
     method: payload ? 'POST' : 'GET',
-    body: payload ? options.stringify(payload) : undefined,
+    body: payload ? JSON.stringify(payload) : undefined,
     headers,
     ...(omitFetchOptions ? {} : reqOptions)
-  }
-  const altFetch = typeof options.alternateFetch === 'function' && options.alternateFetch.length >= 1 ? options.alternateFetch : undefined
-  try {
-    fetchIt(url, fetchOptions, callback, altFetch)
+    } 
+    try {
+    fetchIt(url, fetchOptions, callback);
   } catch (e: unknown) {
-    if (!reqOptions || Object.keys(reqOptions).length === 0 || !e.message || e.message.indexOf('not implemented') < 0) {
-      return callback(e)
+    if (!reqOptions || Object.keys(reqOptions).length === 0 || (e instanceof Error && !e.message) || (e instanceof Error && e.message.indexOf('not implemented') < 0)) {
+      return callback(e, null)
     }
     try {
       Object.keys(reqOptions).forEach((opt) => {
-        delete fetchOptions[opt]
+        delete fetchOptions[opt as keyof typeof reqOptions]
       })
-      fetchIt(url, fetchOptions, callback, altFetch)
+      fetchIt(url, fetchOptions, callback)
       omitFetchOptions = true
     } catch (err) {
-      callback(err)
+      callback(err, null)
     }
   }
 }
@@ -149,10 +146,10 @@ const request = (
   options: LocatsCacheBackendOptions, 
   url: string, 
   payload: {} | string, 
-  callback: Function
+  callback: RequestCallback
 ) => {
   if (typeof payload === 'function') {
-    callback = payload;
+    callback = payload as RequestCallback;
     payload = {};
   }
   callback = callback || (() => {})
@@ -167,7 +164,7 @@ const request = (
     return requestWithXmlHttpRequest(options, url, payload, callback)
   }
 
-  callback(new Error('No fetch and no xhr implementation found!'))
+  callback(new Error('No fetch and no xhr implementation found!'), null)
 }
 
 export default request

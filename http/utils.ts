@@ -3,25 +3,14 @@ export function hasXMLHttpRequest () {
 }
 
 /**
- * Determine whether the given `maybePromise` is a Promise.
- *
- * @param {*} maybePromise
- *
- * @returns {Boolean}
- */
-function isPromise(maybePromise: any): Boolean {
-  return !!maybePromise && typeof maybePromise.then === 'function'
-}
-
-/**
  * Convert any value to a Promise than will resolve to this value.
  *
  * @param {*} maybePromise
  *
  * @returns {Promise}
  */
-export function makePromise(maybePromise: any): Promise<string> {
-  if (isPromise(maybePromise)) {
+export function makePromise(maybePromise: Promise<string> | string): Promise<string> {
+  if (!!maybePromise && typeof maybePromise !== "string" && typeof maybePromise.then === 'function') {
     return maybePromise;
   }
 

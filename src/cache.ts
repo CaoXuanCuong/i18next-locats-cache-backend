@@ -1,5 +1,5 @@
 import { ReadCallback } from "i18next";
-import { LocatsCacheBackendOptions } from "../";
+import { LocaleData, LocatsCacheBackendOptions, RequestCallback } from "../";
 import request from '../http/request'
 import { makePromise } from '../http/utils'
 
@@ -47,9 +47,9 @@ function getDefaults(): LocatsCacheBackendOptions {
     store,
     loadPath: '/locales/{{lng}}/{{ns}}.json',
     addPath: '/locales/add/{{lng}}/{{ns}}',
-    parse: data => JSON.parse(data),
-    parsePayload: (namespace, key, fallbackValue) => ({ [key]: fallbackValue || '' }),
-    parseLoadPayload: (languages, namespaces) => undefined,
+    parse: (data: string) => JSON.parse(data),
+    parsePayload: (namespace: string, key: string | number, fallbackValue: any) => ({ [key]: fallbackValue || '' }),
+    parseLoadPayload: (languages: string[], namespaces: string[]) => undefined,
     request,
     reloadInterval: typeof window !== 'undefined' ? false : 60 * 60 * 1000,
     customHeaders: {},
@@ -77,13 +77,13 @@ class Cache {
     this.type = 'backend';
   }
 
-  init(services?: any, options?: LocatsCacheBackendOptions) {
+  init(services?: any, options?: LocatsCacheBackendOptions): void {
     this.services = services;
     this.options = { ...this.options, ...options };
     this.storage = new Storage(this.options);
   }
 
-  read(language: string, namespace: string, callback: ReadCallback) {
+  read(language: string, namespace: string, callback: ReadCallback): void {
     let nowMS = Date.now();
     if (!this.storage || !this.storage.store) {
       return callback(null, null);
@@ -129,7 +129,7 @@ class Cache {
     return callback(null, null);
   }
 
-  _readAny (languages: string[], loadUrlLanguages: string[] | string, namespaces: string[], loadUrlNamespaces: string[] | string, callback: ReadCallback) {
+  _readAny (languages: string[], loadUrlLanguages: string[] | string, namespaces: string[], loadUrlNamespaces: string[] | string, callback: ReadCallback): void {
     let loadPath = this.options.loadPath as string | Promise<string>;
     if (typeof this.options.loadPath === 'function') {
       loadPath = this.options.loadPath(languages, namespaces);
@@ -144,13 +144,13 @@ class Cache {
     })
   }
 
-  loadUrl (url: string, callback: ReadCallback, languages: string[] | string, namespaces: string[] | string) {
+  loadUrl (url: string, callback: ReadCallback, languages: string[] | string, namespaces: string[] | string): void {
     const lng = (typeof languages === 'string') ? [languages] : languages
     const ns = (typeof namespaces === 'string') ? [namespaces] : namespaces
     // parseLoadPayload — default undefined
     const payload = this.options.parseLoadPayload ? this.options.parseLoadPayload(lng, ns) : {};
     if(this.options.request) {
-      this.options.request(this.options, url, payload, (err: Error, res: Response) => {
+      this.options.request(this.options, url, payload, (err, res): RequestCallback => {
         if (res && ((res.status >= 500 && res.status < 600) || !res.status)) return callback('failed loading ' + url + '; status code: ' + res.status, true /* retry */)
         if (res && res.status >= 400 && res.status < 500) return callback('failed loading ' + url + '; status code: ' + res.status, false /* no retry */)
         if (!res && err && err.message && err.message.indexOf('Failed to fetch') > -1) return callback('failed loading ' + url + ': ' + err.message, true /* retry */)
@@ -167,12 +167,12 @@ class Cache {
           parseErr = 'failed parsing ' + url + ' to json'
         }
         if (parseErr) return callback(parseErr, false)
-        callback(null, ret)
+        return callback(null, ret)
       })
     }
   }
 
-  save(language: string, namespace: string, data: any) {
+  save(language: string, namespace: string, data: LocaleData): void {
     if (this.storage?.store) {
       data.i18nStamp = Date.now();
 
@@ -183,6 +183,35 @@ class Cache {
 
       this.storage.setItem(`${this.options.prefix}${language}-${namespace}`, JSON.stringify(data));
     }
+  }
+
+  create (languages: string[], namespace: string, key: string, fallbackValue: any, callback: ReadCallback): void {
+    // If there is a falsey addPath, then abort -- this has been disabled.
+    if (!this.options.addPath) return
+    if (typeof languages === 'string') languages = [languages]
+    if(!this.options.parsePayload) return;
+    const payload = this.options.parsePayload(namespace, key, fallbackValue)
+    let finished = 0
+    const dataArray: any = []
+    const resArray: any = []
+    languages.forEach(lng => {
+      let addPath = this.options.addPath
+      if (typeof this.options.addPath === 'function') {
+        addPath = this.options.addPath(lng, namespace)
+      }
+      const url = this.services.interpolator.interpolate(addPath, { lng, ns: namespace })
+
+      if(this.options.request) {
+        this.options.request(this.options, url, payload, (data: any, res: any) => {
+          // TODO: if res.status === 4xx do log
+          finished += 1
+          dataArray.push(data)
+          resArray.push(res)
+          if (finished !== languages.length) return callback(dataArray, resArray);
+          if (typeof callback === 'function') return callback(dataArray, resArray);
+        })
+      }
+    })
   }
 
   getVersion(language: string) {
