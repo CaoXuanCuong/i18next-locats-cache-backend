@@ -1,5 +1,7 @@
 import { ReadCallback } from "i18next";
 import { LocatsCacheBackendOptions } from "../";
+import request from '../http/request'
+import { makePromise } from '../http/utils'
 
 class Storage {
   store: any;
@@ -42,7 +44,24 @@ function getDefaults(): LocatsCacheBackendOptions {
     expirationTime: 7 * 24 * 60 * 60 * 1000,
     defaultVersion: undefined,
     versions: {},
-    store
+    store,
+    loadPath: '/locales/{{lng}}/{{ns}}.json',
+    addPath: '/locales/add/{{lng}}/{{ns}}',
+    parse: data => JSON.parse(data),
+    parsePayload: (namespace, key, fallbackValue) => ({ [key]: fallbackValue || '' }),
+    parseLoadPayload: (languages, namespaces) => undefined,
+    request,
+    reloadInterval: typeof window !== 'undefined' ? false : 60 * 60 * 1000,
+    customHeaders: {},
+    queryStringParams: {},
+    crossDomain: false, // used for XmlHttpRequest
+    withCredentials: false, // used for XmlHttpRequest
+    overrideMimeType: false, // used for XmlHttpRequest
+    requestOptions: { // used for fetch
+      mode: 'cors',
+      credentials: 'same-origin',
+      cache: 'default'
+    }
   }
 }
 
@@ -108,6 +127,49 @@ class Cache {
       }
     }
     return callback(null, null);
+  }
+
+  _readAny (languages: string[], loadUrlLanguages: string[] | string, namespaces: string[], loadUrlNamespaces: string[] | string, callback: ReadCallback) {
+    let loadPath = this.options.loadPath as string | Promise<string>;
+    if (typeof this.options.loadPath === 'function') {
+      loadPath = this.options.loadPath(languages, namespaces);
+    }
+
+    loadPath = makePromise(loadPath);
+
+    loadPath.then(resolvedLoadPath => {
+      if (!resolvedLoadPath) return callback(null, {})
+      const url = this.services.interpolator.interpolate(resolvedLoadPath, { lng: languages.join('+'), ns: namespaces.join('+') })
+      this.loadUrl(url, callback, loadUrlLanguages, loadUrlNamespaces)
+    })
+  }
+
+  loadUrl (url: string, callback: ReadCallback, languages: string[] | string, namespaces: string[] | string) {
+    const lng = (typeof languages === 'string') ? [languages] : languages
+    const ns = (typeof namespaces === 'string') ? [namespaces] : namespaces
+    // parseLoadPayload — default undefined
+    const payload = this.options.parseLoadPayload ? this.options.parseLoadPayload(lng, ns) : {};
+    if(this.options.request) {
+      this.options.request(this.options, url, payload, (err: Error, res: Response) => {
+        if (res && ((res.status >= 500 && res.status < 600) || !res.status)) return callback('failed loading ' + url + '; status code: ' + res.status, true /* retry */)
+        if (res && res.status >= 400 && res.status < 500) return callback('failed loading ' + url + '; status code: ' + res.status, false /* no retry */)
+        if (!res && err && err.message && err.message.indexOf('Failed to fetch') > -1) return callback('failed loading ' + url + ': ' + err.message, true /* retry */)
+        if (err) return callback(err, false)
+  
+        let ret, parseErr
+        try {
+          if (typeof res.data === 'string' && this.options.parse) {
+            ret = this.options.parse(res.data, languages, namespaces)
+          } else { // fallback, which omits calling the parse function
+            ret = res.data
+          }
+        } catch (e) {
+          parseErr = 'failed parsing ' + url + ' to json'
+        }
+        if (parseErr) return callback(parseErr, false)
+        callback(null, ret)
+      })
+    }
   }
 
   save(language: string, namespace: string, data: any) {
