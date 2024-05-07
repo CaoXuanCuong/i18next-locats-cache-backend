@@ -84,49 +84,7 @@ class Cache {
   }
 
   read(language: string, namespace: string, callback: ReadCallback): void {
-    let nowMS = Date.now();
-    if (!this.storage || !this.storage.store) {
-      return callback(null, null);
-    }
-    let local = this.storage.getItem("".concat(this.options.prefix || "locats_res_").concat(language, "-").concat(namespace));
-    if (local) {
-      local = JSON.parse(local);
-      let version = this.getVersion(language);
-      if (
-        local.i18nStamp && local.i18nStamp + this.options.expirationTime > nowMS &&
-        version === local.i18nVersion
-      ) {
-        let i18nVersion = local.i18nVersion;
-        let i18nStamp = local.i18nStamp;
-        let i18LocatsEtag = local.i18LocatsEtag;
-        delete local.i18nVersion;
-        delete local.i18nStamp;
-        delete local.i18LocatsEtag;
-        if (this.options.checkEtagPath) {
-          const url = this.services.interpolator.interpolate(this.options.checkEtagPath, { lng: language, ns: namespace })
-          fetch(url, {
-            method: "GET",
-            // Cache-Control header
-            headers: {
-              'If-None-Match': i18LocatsEtag,
-            },
-          })
-            .then(async (response) => {
-              if (response.status === 200) {
-                const json = await response.json();
-                json.i18nStamp = i18nVersion;
-                json.i18nStamp = i18nStamp;
-                json.i18LocatsEtag = response.headers.get("etag");
-                this.storage?.setItem("".concat(this.options?.prefix || "locats_res_").concat(language, "-").concat(namespace), JSON.stringify(json));
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                return callback(null, json);
-              }
-            })
-        }
-        return callback(null, local);
-      }
-    }
-    return callback(null, null);
+    this._readAny([language], language, [namespace], namespace, callback);
   }
 
   _readAny (languages: string[], loadUrlLanguages: string[] | string, namespaces: string[], loadUrlNamespaces: string[] | string, callback: ReadCallback): void {
@@ -145,29 +103,70 @@ class Cache {
   }
 
   loadUrl (url: string, callback: ReadCallback, languages: string[] | string, namespaces: string[] | string): void {
-    const lng = (typeof languages === 'string') ? [languages] : languages
-    const ns = (typeof namespaces === 'string') ? [namespaces] : namespaces
+    if (!this.storage || !this.storage.store) {
+      return callback(null, null);
+    }
+
+    const lng = (typeof languages === 'string') ? [languages] : languages;
+    const ns = (typeof namespaces === 'string') ? [namespaces] : namespaces;
+    let local = this.storage.getItem("".concat(this.options.prefix || "locats_res_").concat(lng[0], "-").concat(ns[0]));
+    if (local) {
+      local = JSON.parse(local);
+      this.options.customHeaders = {
+        ...this.options.customHeaders,
+        "If-None-Match": local.i18LocatsEtag
+      };
+    }
     // parseLoadPayload — default undefined
     const payload = this.options.parseLoadPayload ? this.options.parseLoadPayload(lng, ns) : {};
     if(this.options.request) {
-      this.options.request(this.options, url, payload, (err, res): RequestCallback => {
-        if (res && ((res.status >= 500 && res.status < 600) || !res.status)) return callback('failed loading ' + url + '; status code: ' + res.status, true /* retry */)
-        if (res && res.status >= 400 && res.status < 500) return callback('failed loading ' + url + '; status code: ' + res.status, false /* no retry */)
-        if (!res && err && err.message && err.message.indexOf('Failed to fetch') > -1) return callback('failed loading ' + url + ': ' + err.message, true /* retry */)
-        if (err) return callback(err, false)
+      this.options.request(this.options, url, payload, (err, res) => {
+        if (res && ((res.status >= 500 && res.status < 600) || !res.status)) return callback('failed loading ' + url + '; status code: ' + res.status, true /* retry */);
+        if (res && res.status >= 400 && res.status < 500) return callback('failed loading ' + url + '; status code: ' + res.status, false /* no retry */);
+        if (!res && err && err.message && err.message.indexOf('Failed to fetch') > -1) return callback('failed loading ' + url + ': ' + err.message, true /* retry */);
+        if(res.status === 304) {
+          return callback(null, local);
+        }
+        if (err) return callback(err, false);
   
-        let ret, parseErr
+        let ret: any, parseErr: any;
         try {
           if (typeof res.data === 'string' && this.options.parse) {
-            ret = this.options.parse(res.data, languages, namespaces)
+            ret = this.options.parse(res.data, languages, namespaces);
           } else { // fallback, which omits calling the parse function
-            ret = res.data
+            ret = res.data;
           }
         } catch (e) {
-          parseErr = 'failed parsing ' + url + ' to json'
+          parseErr = 'failed parsing ' + url + ' to json';
         }
-        if (parseErr) return callback(parseErr, false)
-        return callback(null, ret)
+
+        let nowMS = Date.now();
+
+        let version = this.getVersion(lng[0]);
+        if (
+          local.i18nStamp && local.i18nStamp + this.options.expirationTime > nowMS &&
+          version === local.i18nVersion
+        ) {
+          let i18nVersion = local.i18nVersion;
+          let i18nStamp = local.i18nStamp;
+          let i18LocatsEtag = local.i18LocatsEtag;
+          delete local.i18nVersion;
+          delete local.i18nStamp;
+          delete local.i18LocatsEtag;
+          if (this.options.checkEtagPath) {
+            if (response.status === 200) {
+              const json = await response.json();
+              json.i18nStamp = i18nVersion;
+              json.i18nStamp = i18nStamp;
+              json.i18LocatsEtag = response.headers.get("etag");
+              this.storage?.setItem("".concat(this.options?.prefix || "locats_res_").concat(language, "-").concat(namespace), JSON.stringify(json));
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              return callback(null, json);
+            }
+          }
+        }
+        if (parseErr) return callback(parseErr, false);
+        return callback(null, ret);
       })
     }
   }

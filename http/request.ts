@@ -66,11 +66,16 @@ const requestWithFetch = (options: LocatsCacheBackendOptions, url: string, paylo
   if (options.queryStringParams) {
     url = addQueryString(url, options.queryStringParams)
   }
-  const headers = {
-    ...(typeof options.customHeaders === 'function' ? options.customHeaders() : options.customHeaders)
+  let headers = {
+    ...options.customHeaders
   }
 
-  if (payload) headers['Content-Type'] = 'application/json'
+  if (payload) {
+    headers = {
+      ...headers,
+      'Content-Type': 'application/json'
+    }
+  } 
   const reqOptions = typeof options.requestOptions === 'function' ? options.requestOptions(payload) : options.requestOptions
   const fetchOptions: RequestInit = {
     method: payload ? 'POST' : 'GET',
@@ -152,19 +157,19 @@ const request = (
     callback = payload as RequestCallback;
     payload = {};
   }
-  callback = callback || (() => {})
+  callback = callback || (() => {});
 
   if (fetchApi && url.indexOf('file:') !== 0) {
     // use fetch api
-    return requestWithFetch(options, url, payload, callback)
+    return requestWithFetch(options, url, payload, callback);
   }
 
   if (hasXMLHttpRequest() || typeof ActiveXObject === 'function') {
     // use xml http request
-    return requestWithXmlHttpRequest(options, url, payload, callback)
+    return requestWithXmlHttpRequest(options, url, payload, callback);
   }
 
-  callback(new Error('No fetch and no xhr implementation found!'), null)
+  callback(new Error('No fetch and no xhr implementation found!'), null);
 }
 
 export default request
