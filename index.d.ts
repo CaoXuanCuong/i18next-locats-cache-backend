@@ -15,6 +15,7 @@ type RequestCallback = (error: any, response: Nullable<RequestResponse>) => void
 
 interface RequestResponse {
   status: number;
+  etag: string,
   data: ResourceKey;
 }
 

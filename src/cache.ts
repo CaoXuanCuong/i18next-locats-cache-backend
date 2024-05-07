@@ -110,12 +110,28 @@ class Cache {
     const lng = (typeof languages === 'string') ? [languages] : languages;
     const ns = (typeof namespaces === 'string') ? [namespaces] : namespaces;
     let local = this.storage.getItem("".concat(this.options.prefix || "locats_res_").concat(lng[0], "-").concat(ns[0]));
-    if (local) {
+    const nowMS = Date.now();
+    const version = this.getVersion(lng[0]);
+    const cache = 
+        !!local &&
+        local.i18nStamp && local.i18nStamp + this.options.expirationTime > nowMS &&
+        version === local.i18nVersion;
+
+    let i18nVersion = null;
+    let i18nStamp = null;
+
+    if (cache) {
       local = JSON.parse(local);
+      i18nVersion = local.i18nVersion;
+      i18nStamp = local.i18nStamp;
+      delete local.i18nVersion;
+      delete local.i18nStamp;
+
       this.options.customHeaders = {
         ...this.options.customHeaders,
         "If-None-Match": local.i18LocatsEtag
       };
+      callback(null, local);
     }
     // parseLoadPayload — default undefined
     const payload = this.options.parseLoadPayload ? this.options.parseLoadPayload(lng, ns) : {};
@@ -124,9 +140,7 @@ class Cache {
         if (res && ((res.status >= 500 && res.status < 600) || !res.status)) return callback('failed loading ' + url + '; status code: ' + res.status, true /* retry */);
         if (res && res.status >= 400 && res.status < 500) return callback('failed loading ' + url + '; status code: ' + res.status, false /* no retry */);
         if (!res && err && err.message && err.message.indexOf('Failed to fetch') > -1) return callback('failed loading ' + url + ': ' + err.message, true /* retry */);
-        if(res.status === 304) {
-          return callback(null, local);
-        }
+        if(res.status === 304) return;
         if (err) return callback(err, false);
   
         let ret: any, parseErr: any;
@@ -140,51 +154,35 @@ class Cache {
           parseErr = 'failed parsing ' + url + ' to json';
         }
 
-        let nowMS = Date.now();
-
-        let version = this.getVersion(lng[0]);
-        if (
-          local.i18nStamp && local.i18nStamp + this.options.expirationTime > nowMS &&
-          version === local.i18nVersion
-        ) {
-          let i18nVersion = local.i18nVersion;
-          let i18nStamp = local.i18nStamp;
-          let i18LocatsEtag = local.i18LocatsEtag;
-          delete local.i18nVersion;
-          delete local.i18nStamp;
-          delete local.i18LocatsEtag;
-          if (this.options.checkEtagPath) {
-            if (response.status === 200) {
-              const json = await response.json();
-              json.i18nStamp = i18nVersion;
-              json.i18nStamp = i18nStamp;
-              json.i18LocatsEtag = response.headers.get("etag");
-              this.storage?.setItem("".concat(this.options?.prefix || "locats_res_").concat(language, "-").concat(namespace), JSON.stringify(json));
-              await new Promise(resolve => setTimeout(resolve, 5000));
-              return callback(null, json);
-            }
-          }
+        this.storage?.setItem("".concat(this.options?.prefix || "locats_res_").concat(lng[0], "-").concat(ns[0]), JSON.stringify({
+          ...ret,
+          i18nVersion: i18nVersion || version,
+          i18nStamp: i18nStamp || Date.now(),
+          i18LocatsEtag: res.etag,
+        }));
+        if (!cache) {
+          if (parseErr) return callback(parseErr, false);
+          return callback(null, ret);
         }
-        if (parseErr) return callback(parseErr, false);
-        return callback(null, ret);
+
       })
     }
   }
 
-  save(language: string, namespace: string, data: LocaleData): void {
-    if (this.storage?.store) {
-      data.i18nStamp = Date.now();
+  // save(language: string, namespace: string, data: LocaleData): void {
+  //   if (this.storage?.store) {
+  //     data.i18nStamp = Date.now();
 
-      const version = this.getVersion(language);
-      if (version) {
-        data.i18nVersion = version;
-      }
+  //     const version = this.getVersion(language);
+  //     if (version) {
+  //       data.i18nVersion = version;
+  //     }
 
-      this.storage.setItem(`${this.options.prefix}${language}-${namespace}`, JSON.stringify(data));
-    }
-  }
+  //     this.storage.setItem(`${this.options.prefix}${language}-${namespace}`, JSON.stringify(data));
+  //   }
+  // }
 
-  create (languages: string[], namespace: string, key: string, fallbackValue: any, callback: ReadCallback): void {
+  create (languages: string[] | string, namespace: string, key: string, fallbackValue: any, callback: ReadCallback): void {
     // If there is a falsey addPath, then abort -- this has been disabled.
     if (!this.options.addPath) return
     if (typeof languages === 'string') languages = [languages]

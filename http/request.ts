@@ -42,7 +42,7 @@ const fetchIt = (url: string, fetchOptions: RequestInit, callback: RequestCallba
   const resolver = (response: Response) => {
     if (!response.ok) return callback(response.statusText || 'Error', { status: response.status })
     response.text().then((data) => {
-      callback(null, { status: response.status, data })
+      callback(null, { status: response.status, etag: response.headers.get("etag"), data })
     }).catch((e) => {
       callback(e.message, null);
     })
