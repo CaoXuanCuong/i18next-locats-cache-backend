@@ -1,5 +1,5 @@
-import { ReadCallback } from "i18next";
-import { LocaleData, LocatsCacheBackendOptions, RequestCallback } from "../";
+import { ReadCallback, ResourceKey } from "i18next";
+import { LocatsCacheBackendOptions } from "../";
 import request from '../http/request'
 import { makePromise } from '../http/utils'
 
@@ -114,11 +114,11 @@ class Cache {
     const version = this.getVersion(lng[0]);
     const cache = 
         !!local &&
-        local.i18nStamp && local.i18nStamp + this.options.expirationTime > nowMS &&
+        local.i18nStamp && this.options.expirationTime && parseInt(local.i18nStamp) + this.options.expirationTime > nowMS &&
         version === local.i18nVersion;
 
-    let i18nVersion = null;
-    let i18nStamp = null;
+    let i18nVersion: string = "";
+    let i18nStamp: number = 0;
 
     if (cache) {
       local = JSON.parse(local);
@@ -143,7 +143,8 @@ class Cache {
         if(res.status === 304) return;
         if (err) return callback(err, false);
   
-        let ret: any, parseErr: any;
+        let ret: ResourceKey = {};
+        let parseErr: string = "";
         try {
           if (typeof res.data === 'string' && this.options.parse) {
             ret = this.options.parse(res.data, languages, namespaces);
@@ -154,17 +155,20 @@ class Cache {
           parseErr = 'failed parsing ' + url + ' to json';
         }
 
-        this.storage?.setItem("".concat(this.options?.prefix || "locats_res_").concat(lng[0], "-").concat(ns[0]), JSON.stringify({
-          ...ret,
-          i18nVersion: i18nVersion || version,
-          i18nStamp: i18nStamp || Date.now(),
-          i18LocatsEtag: res.etag,
-        }));
+        if(typeof ret === 'object' && !Array.isArray(ret) && ret !== null) {
+          this.storage?.setItem("".concat(this.options?.prefix || "locats_res_").concat(lng[0], "-").concat(ns[0]), JSON.stringify({
+            ...ret,
+            i18nVersion: i18nVersion || version,
+            i18nStamp: i18nStamp || Date.now(),
+            i18LocatsEtag: res.etag,
+          }));
+        } else {
+          callback(null, null);
+        }
         if (!cache) {
           if (parseErr) return callback(parseErr, false);
           return callback(null, ret);
         }
-
       })
     }
   }
@@ -182,34 +186,34 @@ class Cache {
   //   }
   // }
 
-  create (languages: string[] | string, namespace: string, key: string, fallbackValue: any, callback: ReadCallback): void {
-    // If there is a falsey addPath, then abort -- this has been disabled.
-    if (!this.options.addPath) return
-    if (typeof languages === 'string') languages = [languages]
-    if(!this.options.parsePayload) return;
-    const payload = this.options.parsePayload(namespace, key, fallbackValue)
-    let finished = 0
-    const dataArray: any = []
-    const resArray: any = []
-    languages.forEach(lng => {
-      let addPath = this.options.addPath
-      if (typeof this.options.addPath === 'function') {
-        addPath = this.options.addPath(lng, namespace)
-      }
-      const url = this.services.interpolator.interpolate(addPath, { lng, ns: namespace })
+  // create (languages: string[] | string, namespace: string, key: string, fallbackValue: any, callback: ReadCallback): void {
+  //   // If there is a falsey addPath, then abort -- this has been disabled.
+  //   if (!this.options.addPath) return
+  //   if (typeof languages === 'string') languages = [languages]
+  //   if(!this.options.parsePayload) return;
+  //   const payload = this.options.parsePayload(namespace, key, fallbackValue)
+  //   let finished = 0
+  //   const dataArray: any = []
+  //   const resArray: any = []
+  //   languages.forEach(lng => {
+  //     let addPath = this.options.addPath
+  //     if (typeof this.options.addPath === 'function') {
+  //       addPath = this.options.addPath(lng, namespace)
+  //     }
+  //     const url = this.services.interpolator.interpolate(addPath, { lng, ns: namespace })
 
-      if(this.options.request) {
-        this.options.request(this.options, url, payload, (data: any, res: any) => {
-          // TODO: if res.status === 4xx do log
-          finished += 1
-          dataArray.push(data)
-          resArray.push(res)
-          if (finished !== languages.length) return callback(dataArray, resArray);
-          if (typeof callback === 'function') return callback(dataArray, resArray);
-        })
-      }
-    })
-  }
+  //     if(this.options.request) {
+  //       this.options.request(this.options, url, payload, (data: any, res: any) => {
+  //         // TODO: if res.status === 4xx do log
+  //         finished += 1
+  //         dataArray.push(data)
+  //         resArray.push(res)
+  //         if (finished !== languages.length) return callback(dataArray, resArray);
+  //         if (typeof callback === 'function') return callback(dataArray, resArray);
+  //       })
+  //     }
+  //   })
+  // }
 
   getVersion(language: string) {
     if (this.options.versions) {

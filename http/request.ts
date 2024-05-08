@@ -106,7 +106,7 @@ const requestWithXmlHttpRequest = (options: LocatsCacheBackendOptions, url: stri
   if (payload && typeof payload === 'object') {
     // if (!cache) payload._t = Date.now()
     // URL encoded form payload must be in querystring format
-    payload = addQueryString('', payload).slice(1)
+    payload = addQueryString('', payload).slice(1);
   }
 
   if (options.queryStringParams) {
@@ -114,34 +114,34 @@ const requestWithXmlHttpRequest = (options: LocatsCacheBackendOptions, url: stri
   }
 
   try {
-    let x
+    let x: XMLHttpRequest;
     if (XmlHttpRequestApi) {
       x = new XmlHttpRequestApi()
     } else {
-      x = new ActiveXObjectApi('MSXML2.XMLHTTP.3.0')
+      x = new ActiveXObjectApi('MSXML2.XMLHTTP.3.0');
     }
-    x.open(payload ? 'POST' : 'GET', url, 1)
+    x.open(payload ? 'POST' : 'GET', url, true);
     if (!options.crossDomain) {
-      x.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+      x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     }
     x.withCredentials = !!options.withCredentials
     if (payload) {
-      x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
+      x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     }
     if (x.overrideMimeType) {
-      x.overrideMimeType('application/json')
+      x.overrideMimeType('application/json');
     }
     let h = options.customHeaders
-    h = typeof h === 'function' ? h() : h
+    h = typeof h === 'function' ? h() : h;
     if (h) {
       for (const i in h) {
-        x.setRequestHeader(i, h[i])
+        x.setRequestHeader(i, h[i]);
       }
     }
     x.onreadystatechange = () => {
       x.readyState > 3 && callback(x.status >= 400 ? x.statusText : null, { status: x.status, data: x.responseText })
     }
-    x.send(payload)
+    x.send(payload as XMLHttpRequestBodyInit)
   } catch (e) {
     console && console.log(e)
   }
