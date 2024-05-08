@@ -1,6 +1,6 @@
-import { hasXMLHttpRequest } from '../http/utils'
-import fetchNode from '../http/getFetch'
-import { LocatsCacheBackendOptions, RequestCallback } from '../index.js'
+import { hasXMLHttpRequest } from './utils.js'
+import fetchNode from './getFetch.js'
+import { LocatsCacheBackendOptions, RequestCallback } from '../../index.js'
 
 let fetchApi: any;
 if (typeof fetch === 'function') {

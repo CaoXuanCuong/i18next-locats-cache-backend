@@ -1,7 +1,7 @@
 import { ReadCallback, ResourceKey } from "i18next";
 import { LocatsCacheBackendOptions } from "../";
-import request from '../http/request'
-import { makePromise } from '../http/utils'
+import request from './http/request'
+import { makePromise } from './http/utils'
 
 class Storage {
   store: any;
