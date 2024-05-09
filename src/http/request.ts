@@ -132,7 +132,6 @@ const requestWithXmlHttpRequest = (options: LocatsCacheBackendOptions, url: stri
       x.overrideMimeType('application/json');
     }
     let h = options.customHeaders
-    h = typeof h === 'function' ? h() : h;
     if (h) {
       for (const i in h) {
         x.setRequestHeader(i, h[i]);

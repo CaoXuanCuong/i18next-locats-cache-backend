@@ -110,6 +110,12 @@ class Cache {
     const lng = (typeof languages === 'string') ? [languages] : languages;
     const ns = (typeof namespaces === 'string') ? [namespaces] : namespaces;
     let local = this.storage.getItem("".concat(this.options.prefix || "locats_res_").concat(lng[0], "-").concat(ns[0]));
+    try {
+      local = JSON.parse(local);
+    } catch {
+      local = null;
+    }
+
     const nowMS = Date.now();
     const version = this.getVersion(lng[0]);
     const cache = 
@@ -121,7 +127,7 @@ class Cache {
     let i18nStamp: number = 0;
 
     if (cache) {
-      local = JSON.parse(local);
+      callback(null, local);
       i18nVersion = local.i18nVersion;
       i18nStamp = local.i18nStamp;
       delete local.i18nVersion;
@@ -131,7 +137,6 @@ class Cache {
         ...this.options.customHeaders,
         "If-None-Match": local.i18LocatsEtag
       };
-      callback(null, local);
     }
     // parseLoadPayload — default undefined
     const payload = this.options.parseLoadPayload ? this.options.parseLoadPayload(lng, ns) : {};

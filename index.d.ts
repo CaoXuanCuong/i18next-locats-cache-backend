@@ -106,7 +106,7 @@ export interface LocatsCacheBackendOptions {
    * allows an object containing custom headers or a function that when called returns
    * an object of custom headers
    */
-  customHeaders?: { [key: string]: string } | (() => { [key: string]: string });
+  customHeaders?: { [key: string]: string };
 
   /**
    * can be used to reload resources in a specific
